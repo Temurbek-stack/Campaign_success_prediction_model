@@ -1,22 +1,25 @@
-# streamlit_app.py
 import streamlit as st
 import pandas as pd
 import joblib
 import numpy as np
-import sklearn
 import plotly.graph_objects as go
 
-# Load the saved model
-model = joblib.load('model/crm_kpi_predictor.pkl')
+# Load the four LightGBM models
+models = {
+    'ROI (%)': joblib.load('model/model_lgbm_ROI.pkl'),
+    'ConversionRate': joblib.load('model/model_lgbm_ConversionRate.pkl'),
+    'CTR': joblib.load('model/model_lgbm_CTR.pkl'),
+    'RevenuePerUser': joblib.load('model/model_lgbm_RevenuePerUser.pkl')
+}
 
-# Collect user input
-st.title("CRM KPI Prediction App")
+# User interface
+st.title("CRM KPI Prediction App (LightGBM)")
 
-# Create two columns for input fields
+# Two columns for user input
 col1, col2 = st.columns(2)
 
 with col1:
-    country = st.selectbox("Country", ['Germany', 'Austria', 'Switzerland', 'Poland', 'United States', ...])  # full list
+    country = st.selectbox("Country", ['Germany', 'Austria', 'Switzerland', 'Poland', 'United States', ...])
     segment = st.selectbox("Customer Segment", ['New', 'Loyal', 'Lapsed', 'High-Value', 'Deal Seeker', 'Inactive'])
     campaign_type = st.selectbox("Campaign Type", ['Promotion', 'New Arrival', 'Reminder', 'Abandoned Cart', 'Seasonal Offer', 'Loyalty Reward'])
     discount_value = st.slider("Discount Value", 0, 50, 10)
@@ -37,13 +40,12 @@ with col2:
     gender_female_ratio = st.slider("Female Gender Ratio", 0.0, 1.0, 0.5)
     impressions = st.slider("Impressions", 1000, 10000, 5000)
 
-# Predict
+# KPI prediction
 if st.button("Predict KPIs"):
     channels = ['Email', 'Push', 'Print']
     results = []
-    
+
     for channel in channels:
-        # Create a DataFrame for prediction
         user_input = pd.DataFrame([{
             'Country': country,
             'Segment': segment,
@@ -65,17 +67,18 @@ if st.button("Predict KPIs"):
             'GenderFemaleRatio': gender_female_ratio,
             'Impressions': impressions
         }])
-        
-        prediction = model.predict(user_input)[0]
-        # Skip the first value (ROI) and only take the last 3 values
-        results.append(prediction[1:])
-    
-    # Create bar charts for each KPI
+
+        predictions = []
+        for target in ['ConversionRate', 'CTR', 'RevenuePerUser']:
+            prediction = models[target].predict(user_input)[0]
+            predictions.append(prediction)
+        results.append(predictions)
+
+    # KPI names
     kpis = ['Conversion Rate', 'Click-Through Rate (CTR)', 'Revenue Per User']
-    
-    # Create three columns for the charts
+
+    # Charts
     chart_col1, chart_col2, chart_col3 = st.columns(3)
-    
     for i, kpi in enumerate(kpis):
         fig = go.Figure(data=[
             go.Bar(
@@ -84,28 +87,16 @@ if st.button("Predict KPIs"):
                 marker_color=['#1f77b4', '#ff7f0e', '#2ca02c']
             )
         ])
-        
         fig.update_layout(
             title=f'{kpi} by Channel',
             xaxis_title='Channel',
             yaxis_title=kpi,
             showlegend=False,
-            height=400  # Set a fixed height for better layout
+            height=400
         )
-        
-        # Place each chart in its respective column
-        if i == 0:
-            chart_col1.plotly_chart(fig, use_container_width=True)
-        elif i == 1:
-            chart_col2.plotly_chart(fig, use_container_width=True)
-        else:
-            chart_col3.plotly_chart(fig, use_container_width=True)
-    
-    # Display detailed results in a table
+        [chart_col1, chart_col2, chart_col3][i].plotly_chart(fig, use_container_width=True)
+
+    # Display result table
     st.subheader("📊 Detailed KPI Results by Channel")
-    results_df = pd.DataFrame(
-        results,
-        index=channels,
-        columns=kpis
-    )
+    results_df = pd.DataFrame(results, index=channels, columns=kpis)
     st.dataframe(results_df.style.format("{:.2f}"))
