@@ -13,7 +13,7 @@ models = {
 }
 
 # User interface
-st.title("CRM KPI Prediction App (LightGBM)")
+st.title("Campaign Success Prediction App (LightGBM)")
 
 # Two columns for user input
 col1, col2 = st.columns(2)
